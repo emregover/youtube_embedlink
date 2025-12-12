@@ -39,6 +39,29 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({ videoId, autop
     return () => clearTimeout(timer);
   }, [currentVideoId, useFallback, autoplay]);
 
+  const handleBackdropClick = () => {
+    // If we are in fallback mode, we shouldn't intervene with JS commands as they won't work.
+    // The pointer-events logic below handles the pass-through.
+    if (useFallback) return;
+
+    const iframe = document.getElementById('youtube-background-player') as HTMLIFrameElement;
+    if (iframe && iframe.contentWindow) {
+      // Force play
+      iframe.contentWindow.postMessage(JSON.stringify({
+        event: 'command',
+        func: 'playVideo',
+        args: []
+      }), '*');
+      
+      // Force unmute (useful if it was autoplaying muted, or if user wants sound)
+      iframe.contentWindow.postMessage(JSON.stringify({
+        event: 'command',
+        func: 'unMute',
+        args: []
+      }), '*');
+    }
+  };
+
   const embedUrl = useFallback ? getSimpleEmbedUrl(currentVideoId, autoplay) : getEmbedUrl(currentVideoId, autoplay);
 
   return (
@@ -67,8 +90,16 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({ videoId, autop
         />
       </div>
       
-      {/* Dark overlay to ensure text readability */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] pointer-events-none" />
+      {/* 
+         Dark overlay to ensure text readability.
+         - If using API (standard mode): We capture clicks to force Play/Unmute via JS.
+         - If using Fallback: We disable pointer events so clicks pass through to the native YouTube player.
+      */}
+      <div 
+        className={`absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-colors ${!useFallback ? 'cursor-pointer hover:bg-black/30' : 'pointer-events-none'}`} 
+        onClick={!useFallback ? handleBackdropClick : undefined}
+        title={!useFallback ? "Click to Play / Unmute" : undefined}
+      />
     </div>
   );
 };
