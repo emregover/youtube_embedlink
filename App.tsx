@@ -118,7 +118,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-center overflow-hidden">
+    <div className="relative min-h-screen w-full flex flex-col items-center justify-center overflow-hidden pointer-events-none">
       
       {/* Background Component */}
       <VideoBackground 
@@ -155,7 +155,7 @@ const App: React.FC = () => {
       </main>
 
       {/* Footer Info */}
-      <footer className="absolute bottom-6 text-white/20 text-xs font-light tracking-widest uppercase flex flex-col items-center gap-2 pointer-events-auto">
+      <footer className="absolute bottom-6 z-20 text-white/20 text-xs font-light tracking-widest uppercase flex flex-col items-center gap-2 pointer-events-auto">
         <span>Designed for Focus & Ambience</span>
         
         <div className="flex items-center gap-4">
@@ -177,7 +177,7 @@ const App: React.FC = () => {
 
       {/* DEBUG PANEL */}
       {showDebug && (
-        <div className="fixed bottom-4 left-4 z-50 flex flex-col gap-2 w-80 max-h-[50vh]">
+        <div className="fixed bottom-4 left-4 z-50 flex flex-col gap-2 w-80 max-h-[50vh] pointer-events-auto">
           
           <div className="p-4 rounded-lg bg-black/80 border border-green-500/30 backdrop-blur-md text-xs font-mono text-green-400 shadow-2xl flex flex-col gap-3">
             <div className="flex justify-between items-center border-b border-green-500/30 pb-2">

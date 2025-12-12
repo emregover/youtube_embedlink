@@ -121,7 +121,10 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({
   const allowDirectInteraction = useFallback || isSandboxed;
 
   return (
-    <div ref={containerRef} className="fixed inset-0 w-full h-full overflow-hidden -z-10 bg-black">
+    <div 
+      ref={containerRef} 
+      className="fixed inset-0 w-full h-full overflow-hidden z-0 bg-black pointer-events-auto"
+    >
       <div className="
         absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 
         w-[150vw] h-[150vh] min-w-[177.77vh] min-h-[56.25vw]
