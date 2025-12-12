@@ -36,8 +36,9 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({ videoId, autop
   }, [currentVideoId, useFallback, autoplay]);
 
   const handleBackdropClick = () => {
-    // Only used when we are overlaying the iframe (Autoplay=ON)
-    // We strictly want to ensure it plays and unmutes, avoiding accidental pauses
+    // We send both playVideo and unMute.
+    // This handles the case where autoplay was OFF (starts playing)
+    // AND the case where autoplay was ON (ensures sound is on if browser muted it).
     const iframe = document.getElementById('youtube-background-player') as HTMLIFrameElement;
     if (iframe && iframe.contentWindow) {
       iframe.contentWindow.postMessage(JSON.stringify({
@@ -56,11 +57,16 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({ videoId, autop
 
   const embedUrl = useFallback ? getSimpleEmbedUrl(currentVideoId, autoplay) : getEmbedUrl(currentVideoId, autoplay);
   
-  // Logic to determine if we should let the user click the iframe directly.
-  // 1. If Fallback: Yes (API won't work).
-  // 2. If Autoplay OFF: Yes (Native click is best for starting unmuted playback).
-  // 3. If Autoplay ON: No (We want to capture click to Unmute without Pausing).
-  const allowDirectInteraction = useFallback || !autoplay;
+  // Interaction Logic:
+  // If we are in Fallback Mode (API disabled/unavailable):
+  //   - We MUST let the click pass through to the iframe (`allowDirectInteraction = true`).
+  //   - The user will interact with the native YouTube player controls (or thumbnail click).
+  // If we are in Standard Mode (API connected):
+  //   - We BLOCK the pass-through (`allowDirectInteraction = false`).
+  //   - We capture the click on the overlay div.
+  //   - We use the `handleBackdropClick` to strictly send API commands.
+  //   - This is more reliable than hoping the `controls=0` iframe handles the click correctly.
+  const allowDirectInteraction = useFallback;
 
   return (
     <div className="fixed inset-0 w-full h-full overflow-hidden -z-10 bg-black">
@@ -81,10 +87,15 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({ videoId, autop
         />
       </div>
       
+      {/* 
+         Overlay behaves as the "Play Button" for the whole screen.
+         - If !allowDirectInteraction: It captures clicks and calls API. Cursor is pointer.
+         - If allowDirectInteraction: It ignores clicks (pointer-events-none), letting them hit the iframe.
+      */}
       <div 
         className={`absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-colors ${!allowDirectInteraction ? 'cursor-pointer hover:bg-black/30' : 'pointer-events-none'}`} 
         onClick={!allowDirectInteraction ? handleBackdropClick : undefined}
-        title={!allowDirectInteraction ? "Click to Unmute" : undefined}
+        title={!allowDirectInteraction ? "Click to Play / Unmute" : undefined}
       />
     </div>
   );
