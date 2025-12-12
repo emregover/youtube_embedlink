@@ -3,10 +3,11 @@ import { getEmbedUrl, getSimpleEmbedUrl } from '../utils/youtubeUtils';
 
 interface VideoBackgroundProps {
   videoId: string;
+  autoplay?: boolean;
   useFallback?: boolean;
 }
 
-export const VideoBackground: React.FC<VideoBackgroundProps> = ({ videoId, useFallback = false }) => {
+export const VideoBackground: React.FC<VideoBackgroundProps> = ({ videoId, autoplay = true, useFallback = false }) => {
   const [currentVideoId, setCurrentVideoId] = useState(videoId);
 
   // Sync prop to state
@@ -19,8 +20,9 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({ videoId, useFa
   // Auto-Play "Kickstart"
   // If the browser blocks standard autoplay, we send a manual "playVideo" command via JS.
   // We SKIP this if we are in fallback mode since the API is disabled.
+  // We SKIP this if autoplay is explicitly OFF.
   useEffect(() => {
-    if (useFallback) return;
+    if (useFallback || !autoplay) return;
 
     const timer = setTimeout(() => {
       const iframe = document.getElementById('youtube-background-player') as HTMLIFrameElement;
@@ -35,9 +37,9 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({ videoId, useFa
     }, 1500); // Wait 1.5s to ensure the player API is initialized
     
     return () => clearTimeout(timer);
-  }, [currentVideoId, useFallback]);
+  }, [currentVideoId, useFallback, autoplay]);
 
-  const embedUrl = useFallback ? getSimpleEmbedUrl(currentVideoId) : getEmbedUrl(currentVideoId);
+  const embedUrl = useFallback ? getSimpleEmbedUrl(currentVideoId, autoplay) : getEmbedUrl(currentVideoId, autoplay);
 
   return (
     <div className="fixed inset-0 w-full h-full overflow-hidden -z-10 bg-black">
@@ -52,7 +54,7 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({ videoId, useFa
       ">
         <iframe
           id="youtube-background-player" // Added ID for external control
-          key={`${currentVideoId}-${useFallback ? 'basic' : 'api'}`} 
+          key={`${currentVideoId}-${useFallback ? 'basic' : 'api'}-${autoplay ? 'auto' : 'manual'}`} 
           src={embedUrl}
           title="Background Video"
           className="w-full h-full object-cover pointer-events-auto" // Ensure clickable

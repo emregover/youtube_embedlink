@@ -4,8 +4,12 @@ import { InputBar } from './components/InputBar';
 import { AlertCircleIcon } from './components/Icons';
 
 const App: React.FC = () => {
-  // Default video: "Sci-Fi Cyberpunk City"
-  const [videoId, setVideoId] = useState<string>('n_Dv4JMiwK8');
+  // Video Configuration State
+  const [videoConfig, setVideoConfig] = useState({
+    id: 'n_Dv4JMiwK8', // Default: "Sci-Fi Cyberpunk City"
+    autoplay: true
+  });
+
   // Enable debug by default to help diagnose issues
   const [showDebug, setShowDebug] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
@@ -59,14 +63,16 @@ const App: React.FC = () => {
             setHasConnectionError(false);
             addLog('Player Ready - API Connected');
             
-            // Try to force play on ready (sometimes autoplay needs a nudge)
-            const iframe = document.getElementById('youtube-background-player') as HTMLIFrameElement;
-            if (iframe && iframe.contentWindow) {
-               iframe.contentWindow.postMessage(JSON.stringify({
-                 event: 'command',
-                 func: 'playVideo',
-                 args: []
-               }), '*');
+            // Try to force play on ready ONLY IF autoplay is enabled
+            if (videoConfig.autoplay) {
+              const iframe = document.getElementById('youtube-background-player') as HTMLIFrameElement;
+              if (iframe && iframe.contentWindow) {
+                 iframe.contentWindow.postMessage(JSON.stringify({
+                   event: 'command',
+                   func: 'playVideo',
+                   args: []
+                 }), '*');
+              }
             }
 
           } else if (data.event === 'initialDelivery') {
@@ -83,21 +89,13 @@ const App: React.FC = () => {
     window.addEventListener('message', handleMessage);
     addLog('Listener attached. Waiting for YouTube API...');
 
-    // Check for API connection timeout
-    // Increased to 8000ms to allow for slower networks or heavy loading
-    const timeoutCheck = setTimeout(() => {
-      if (!isApiConnected.current) {
-        addLog('--- CONNECTION TIMEOUT ---');
-        addLog('Switched to Basic Embed Mode (No API)');
-        setHasConnectionError(true); 
-      }
-    }, 8000);
+    // NOTE: Removed connection timeout logic entirely to prevent any unwanted reloads.
+    // If the API connects, great. If not, the video will still play in basic mode without forcing a state change.
     
     return () => {
       window.removeEventListener('message', handleMessage);
-      clearTimeout(timeoutCheck);
     };
-  }, [addLog, videoId]); // Re-run on videoId change
+  }, [addLog, videoConfig.id, videoConfig.autoplay]); // Re-run on video config change
 
   // Manual Play Trigger
   const forcePlay = () => {
@@ -123,7 +121,11 @@ const App: React.FC = () => {
     <div className="relative min-h-screen w-full flex flex-col items-center justify-center overflow-hidden">
       
       {/* Background Component */}
-      <VideoBackground videoId={videoId} useFallback={hasConnectionError} />
+      <VideoBackground 
+        videoId={videoConfig.id} 
+        autoplay={videoConfig.autoplay}
+        useFallback={hasConnectionError} 
+      />
 
       {/* Main Content Area */}
       <main className="z-10 w-full flex flex-col items-center justify-center space-y-8 px-4 pointer-events-none">
@@ -141,15 +143,13 @@ const App: React.FC = () => {
         {/* Input Interaction */}
         <div className="w-full flex justify-center pointer-events-auto">
           <InputBar 
-            onVideoChange={(id) => {
-              setVideoId(id);
-              addLog(`Switched video to: ${id}`);
+            onVideoChange={(id, autoplay) => {
+              setVideoConfig({ id, autoplay });
+              addLog(`Switched video to: ${id} (Autoplay: ${autoplay})`);
             }} 
-            currentVideoId={videoId} 
+            currentVideoId={videoConfig.id} 
           />
         </div>
-
-        {/* Removed intrusive warning. Status is now in footer/debug only. */}
 
       </main>
 
@@ -189,7 +189,11 @@ const App: React.FC = () => {
             <div className="space-y-1">
                <div className="flex justify-between">
                 <span className="text-gray-500 uppercase text-[10px]">Video ID</span>
-                <span>{videoId}</span>
+                <span>{videoConfig.id}</span>
+               </div>
+               <div className="flex justify-between">
+                <span className="text-gray-500 uppercase text-[10px]">Autoplay</span>
+                <span>{videoConfig.autoplay ? 'ON' : 'OFF'}</span>
                </div>
                <div className="flex justify-between">
                 <span className="text-gray-500 uppercase text-[10px]">Mode</span>
@@ -197,7 +201,7 @@ const App: React.FC = () => {
                </div>
                <div>
                   <a 
-                    href={`https://www.youtube.com/watch?v=${videoId}`} 
+                    href={`https://www.youtube.com/watch?v=${videoConfig.id}`} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="text-blue-400 hover:text-blue-300 underline block text-right"

@@ -3,7 +3,7 @@ import { extractVideoId } from '../utils/youtubeUtils';
 import { LinkIcon, PlayIcon, AlertCircleIcon, XIcon } from './Icons';
 
 interface InputBarProps {
-  onVideoChange: (id: string) => void;
+  onVideoChange: (id: string, autoplay: boolean) => void;
   currentVideoId: string;
 }
 
@@ -11,6 +11,7 @@ export const InputBar: React.FC<InputBarProps> = ({ onVideoChange, currentVideoI
   const [inputValue, setInputValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const [autoplay, setAutoplay] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -22,7 +23,7 @@ export const InputBar: React.FC<InputBarProps> = ({ onVideoChange, currentVideoI
 
     const newId = extractVideoId(trimmedInput);
     if (newId) {
-      onVideoChange(newId);
+      onVideoChange(newId, autoplay);
       setInputValue('');
       inputRef.current?.blur();
     } else {
@@ -74,18 +75,28 @@ export const InputBar: React.FC<InputBarProps> = ({ onVideoChange, currentVideoI
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             placeholder="Paste YouTube or Shorts link..."
-            className="flex-1 bg-transparent border-none outline-none text-white placeholder-white/50 text-lg py-3 font-light"
+            className="flex-1 bg-transparent border-none outline-none text-white placeholder-white/50 text-lg py-3 font-light min-w-0"
           />
 
           {inputValue && (
              <button
              type="button"
              onClick={handleClear}
-             className="p-2 mr-2 text-white/50 hover:text-white transition-colors"
+             className="p-2 mr-1 text-white/50 hover:text-white transition-colors"
            >
              <XIcon className="w-5 h-5" />
            </button>
           )}
+
+          {/* Autoplay Toggle */}
+          <div 
+            className="flex items-center gap-2 mr-2 px-3 py-2 rounded-lg bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10 transition-colors"
+            onClick={() => setAutoplay(!autoplay)}
+            title="Toggle Autoplay"
+          >
+            <div className={`w-3 h-3 rounded-full transition-colors ${autoplay ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-white/20'}`}></div>
+            <span className="text-xs font-medium text-white/70 select-none hidden sm:block">Autoplay</span>
+          </div>
 
           <button
             type="submit"

@@ -69,8 +69,10 @@ export const extractVideoId = (url: string): string | null => {
 
 /**
  * Generates the embed URL with logic to handle both standard and sandboxed environments.
+ * @param videoId The YouTube Video ID
+ * @param autoplay Whether to autoplay the video. Default true.
  */
-export const getEmbedUrl = (videoId: string): string => {
+export const getEmbedUrl = (videoId: string, autoplay: boolean = true): string => {
   // Ensure origin is clean (no trailing slash) which is required for strict origin checks
   const rawOrigin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : '';
   const origin = rawOrigin.replace(/\/$/, '');
@@ -82,9 +84,13 @@ export const getEmbedUrl = (videoId: string): string => {
   // If sandboxed, TURN OFF the API. The video will play, but custom controls won't work.
   const enableApi = isSandboxed ? '0' : '1'; 
 
+  // If Autoplay is ON: mute=1 (required for most browsers).
+  // If Autoplay is OFF: mute=0 (so it plays with sound when clicked).
+  const shouldMute = autoplay ? '1' : '0';
+
   const params = new URLSearchParams({
-    autoplay: '1',
-    mute: '1', 
+    autoplay: autoplay ? '1' : '0',
+    mute: shouldMute, 
     controls: isSandboxed ? '1' : '0', // Show native controls if we can't use custom ones
     enablejsapi: enableApi,
     origin: origin,
@@ -101,10 +107,12 @@ export const getEmbedUrl = (videoId: string): string => {
  * Generates a basic embed URL without API dependencies.
  * Useful for fallback modes.
  */
-export const getSimpleEmbedUrl = (videoId: string): string => {
+export const getSimpleEmbedUrl = (videoId: string, autoplay: boolean = true): string => {
+  const shouldMute = autoplay ? '1' : '0';
+  
   const params = new URLSearchParams({
-    autoplay: '1',
-    mute: '1',
+    autoplay: autoplay ? '1' : '0',
+    mute: shouldMute,
     controls: '0',
     loop: '1',
     playlist: videoId,
