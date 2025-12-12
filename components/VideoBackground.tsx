@@ -6,13 +6,15 @@ interface VideoBackgroundProps {
   autoplay?: boolean;
   useFallback?: boolean;
   onDebugLog?: (msg: string) => void;
+  onTogglePlay?: () => void;
 }
 
 export const VideoBackground: React.FC<VideoBackgroundProps> = ({ 
   videoId, 
   autoplay = true, 
   useFallback = false,
-  onDebugLog 
+  onDebugLog,
+  onTogglePlay
 }) => {
   const [currentVideoId, setCurrentVideoId] = useState(videoId);
   const [isSandboxed, setIsSandboxed] = useState(false);
@@ -81,7 +83,15 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({
   }, [currentVideoId, useFallback, autoplay]);
 
   const handleBackdropClick = () => {
-    onDebugLog?.('[VideoBG] Overlay Clicked -> Sending API Commands');
+    // If parent provided a toggler, use it (Smart Toggle)
+    if (onTogglePlay) {
+      onDebugLog?.('[VideoBG] Overlay Clicked -> Delegating to onTogglePlay');
+      onTogglePlay();
+      return;
+    }
+
+    // Default "Force Play" behavior if no toggler
+    onDebugLog?.('[VideoBG] Overlay Clicked -> Sending API Commands (Force Play)');
     
     const iframe = document.getElementById('youtube-background-player') as HTMLIFrameElement;
     if (!iframe) {
@@ -146,7 +156,7 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({
         data-overlay="true"
         className={`absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-colors ${!allowDirectInteraction ? 'cursor-pointer hover:bg-black/30' : 'pointer-events-none'}`} 
         onClick={!allowDirectInteraction ? handleBackdropClick : undefined}
-        title={!allowDirectInteraction ? "Click to Play / Unmute" : undefined}
+        title={!allowDirectInteraction ? "Click to Toggle Play/Pause" : undefined}
       />
     </div>
   );

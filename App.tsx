@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { VideoBackground } from './components/VideoBackground';
 import { InputBar } from './components/InputBar';
-import { AlertCircleIcon } from './components/Icons';
+import { AlertCircleIcon, PlayIcon, PauseIcon, VolumeHighIcon, VolumeXIcon } from './components/Icons';
 
 const App: React.FC = () => {
   // Video Configuration State
@@ -9,6 +9,11 @@ const App: React.FC = () => {
     id: 'n_Dv4JMiwK8', // Default: "Sci-Fi Cyberpunk City"
     autoplay: true
   });
+
+  // Playback & Volume State
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(100);
+  const [isMuted, setIsMuted] = useState(false);
 
   // Enable debug by default to help diagnose issues
   const [showDebug, setShowDebug] = useState(false);
@@ -20,6 +25,57 @@ const App: React.FC = () => {
   const addLog = useCallback((msg: string) => {
     setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 50));
   }, []);
+
+  // Helper to send commands to the YouTube iframe
+  const sendCommand = useCallback((func: string, args: any[] = []) => {
+    const iframe = document.getElementById('youtube-background-player') as HTMLIFrameElement;
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage(JSON.stringify({
+        event: 'command',
+        func,
+        args
+      }), '*');
+      return true;
+    }
+    return false;
+  }, []);
+
+  // Toggle Play/Pause
+  const togglePlayback = useCallback(() => {
+    if (isPlaying) {
+      sendCommand('pauseVideo');
+      addLog('Action: Pause');
+    } else {
+      sendCommand('playVideo');
+      // Ensure we unmute on explicit play interaction if seemingly muted by browser policy
+      // But don't override explicit user mute choice if we track it.
+      // For now, let's just play.
+      addLog('Action: Play');
+    }
+  }, [isPlaying, sendCommand, addLog]);
+
+  // Volume Control
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVol = parseInt(e.target.value);
+    setVolume(newVol);
+    sendCommand('setVolume', [newVol]);
+    if (newVol > 0 && isMuted) {
+      setIsMuted(false);
+      sendCommand('unMute');
+    }
+  };
+
+  const toggleMute = () => {
+    if (isMuted) {
+      sendCommand('unMute');
+      setIsMuted(false);
+      addLog('Action: Unmute');
+    } else {
+      sendCommand('mute');
+      setIsMuted(true);
+      addLog('Action: Mute');
+    }
+  };
 
   // Listen for YouTube Iframe API messages
   useEffect(() => {
@@ -49,8 +105,18 @@ const App: React.FC = () => {
                  '3': 'Buffering',
                  '5': 'Cued'
                };
-               addLog(`State Change: ${states[data.info.playerState] || data.info.playerState}`);
+               const state = data.info.playerState;
+               addLog(`State Change: ${states[state] || state}`);
+
+               // Update local state
+               if (state === 1) setIsPlaying(true);
+               if (state === 2 || state === 0) setIsPlaying(false);
              }
+             
+             // Volume info might come through here too, but less reliably for sync
+             if (data.info.muted !== undefined) setIsMuted(data.info.muted);
+             if (data.info.volume !== undefined) setVolume(data.info.volume);
+
              if (data.info.error) {
                addLog(`ERROR CODE: ${data.info.error}`);
                addLog('Meaning: 100/101/150 = Owner blocks embed.');
@@ -65,14 +131,9 @@ const App: React.FC = () => {
             
             // Try to force play on ready ONLY IF autoplay is enabled
             if (videoConfig.autoplay) {
-              const iframe = document.getElementById('youtube-background-player') as HTMLIFrameElement;
-              if (iframe && iframe.contentWindow) {
-                 iframe.contentWindow.postMessage(JSON.stringify({
-                   event: 'command',
-                   func: 'playVideo',
-                   args: []
-                 }), '*');
-              }
+              sendCommand('playVideo');
+              // Optional: Unmute if autoplay
+              // sendCommand('unMute'); 
             }
 
           } else if (data.event === 'initialDelivery') {
@@ -88,29 +149,11 @@ const App: React.FC = () => {
 
     window.addEventListener('message', handleMessage);
     addLog('Listener attached. Waiting for YouTube API...');
-
-    // NOTE: Removed connection timeout logic entirely to prevent any unwanted reloads.
-    // If the API connects, great. If not, the video will still play in basic mode without forcing a state change.
     
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [addLog, videoConfig.id, videoConfig.autoplay]); // Re-run on video config change
-
-  // Manual Play Trigger
-  const forcePlay = () => {
-    const iframe = document.getElementById('youtube-background-player') as HTMLIFrameElement;
-    if (iframe && iframe.contentWindow) {
-      addLog('Sending Force Play command...');
-      iframe.contentWindow.postMessage(JSON.stringify({
-        event: 'command',
-        func: 'playVideo',
-        args: []
-      }), '*');
-    } else {
-      addLog('Could not find iframe to send command.');
-    }
-  };
+  }, [addLog, videoConfig.id, videoConfig.autoplay, sendCommand]);
 
   const copyLogs = () => {
     navigator.clipboard.writeText(logs.join('\n'));
@@ -126,6 +169,7 @@ const App: React.FC = () => {
         autoplay={videoConfig.autoplay}
         useFallback={hasConnectionError}
         onDebugLog={addLog}
+        onTogglePlay={!hasConnectionError ? togglePlayback : undefined}
       />
 
       {/* Main Content Area */}
@@ -153,6 +197,49 @@ const App: React.FC = () => {
         </div>
 
       </main>
+
+      {/* Floating Control Bar (Only shows if API is working) */}
+      {!hasConnectionError && (
+        <div className="fixed bottom-24 z-30 pointer-events-auto animate-float">
+          <div className="flex items-center gap-4 px-6 py-3 bg-black/40 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl transition-all hover:bg-black/50 hover:border-white/20 hover:scale-105">
+            
+            {/* Play/Pause Button */}
+            <button 
+              onClick={togglePlayback}
+              className="text-white hover:text-green-400 transition-colors focus:outline-none"
+              title={isPlaying ? "Pause" : "Play"}
+            >
+              {isPlaying ? <PauseIcon className="w-6 h-6 fill-current" /> : <PlayIcon className="w-6 h-6 fill-current" />}
+            </button>
+
+            <div className="h-6 w-px bg-white/10 mx-1"></div>
+
+            {/* Volume Control Group */}
+            <div className="flex items-center gap-2 group relative">
+              <button 
+                onClick={toggleMute}
+                className="text-white/80 hover:text-white transition-colors"
+                title={isMuted ? "Unmute" : "Mute"}
+              >
+                {isMuted || volume === 0 ? <VolumeXIcon className="w-5 h-5" /> : <VolumeHighIcon className="w-5 h-5" />}
+              </button>
+              
+              {/* Volume Slider - Expands on hover */}
+              <div className="w-0 overflow-hidden group-hover:w-24 transition-all duration-300 ease-out flex items-center">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={isMuted ? 0 : volume}
+                  onChange={handleVolumeChange}
+                  className="w-20 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white hover:accent-green-400 ml-2"
+                />
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* Footer Info */}
       <footer className="absolute bottom-6 z-20 text-white/20 text-xs font-light tracking-widest uppercase flex flex-col items-center gap-2 pointer-events-auto">
@@ -197,8 +284,8 @@ const App: React.FC = () => {
                 <span>{videoConfig.autoplay ? 'ON' : 'OFF'}</span>
                </div>
                <div className="flex justify-between">
-                <span className="text-gray-500 uppercase text-[10px]">Mode</span>
-                <span>{hasConnectionError ? 'Basic (Fallback)' : 'API (Standard)'}</span>
+                <span className="text-gray-500 uppercase text-[10px]">State</span>
+                <span className={isPlaying ? 'text-green-400' : 'text-yellow-400'}>{isPlaying ? 'PLAYING' : 'PAUSED'}</span>
                </div>
                <div>
                   <a 
@@ -223,7 +310,7 @@ const App: React.FC = () => {
 
             <div className="flex gap-2">
               <button 
-                onClick={forcePlay}
+                onClick={() => sendCommand('playVideo')}
                 disabled={hasConnectionError}
                 className={`flex-1 py-1.5 rounded border transition-colors ${hasConnectionError ? 'bg-gray-800 text-gray-500 border-gray-700' : 'bg-green-900/30 hover:bg-green-900/50 text-green-200 border-green-500/30'}`}
               >
