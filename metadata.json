@@ -1,0 +1,5 @@
+{
+  "name": "TubeBackdrop",
+  "description": "An immersive video background application that plays YouTube videos or Shorts in a seamless loop behind a minimal interface.",
+  "requestFramePermissions": []
+}
