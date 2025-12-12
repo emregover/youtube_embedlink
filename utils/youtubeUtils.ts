@@ -71,7 +71,9 @@ export const extractVideoId = (url: string): string | null => {
  * Generates the embed URL with logic to handle both standard and sandboxed environments.
  */
 export const getEmbedUrl = (videoId: string): string => {
-  const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : '';
+  // Ensure origin is clean (no trailing slash) which is required for strict origin checks
+  const rawOrigin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : '';
+  const origin = rawOrigin.replace(/\/$/, '');
   
   // DETECT AI STUDIO PREVIEW
   // If we are on a ".google" or "usercontent" domain, disable the API to prevent errors

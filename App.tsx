@@ -7,7 +7,7 @@ const App: React.FC = () => {
   // Default video: "Sci-Fi Cyberpunk City"
   const [videoId, setVideoId] = useState<string>('n_Dv4JMiwK8');
   // Enable debug by default to help diagnose issues
-  const [showDebug, setShowDebug] = useState(true);
+  const [showDebug, setShowDebug] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [hasConnectionError, setHasConnectionError] = useState(false);
   const isApiConnected = useRef(false);
@@ -50,10 +50,12 @@ const App: React.FC = () => {
              if (data.info.error) {
                addLog(`ERROR CODE: ${data.info.error}`);
                addLog('Meaning: 100/101/150 = Owner blocks embed.');
+               // For explicit embed errors, we force basic mode immediately
                setHasConnectionError(true);
              }
           } else if (data.event === 'onReady') {
             isApiConnected.current = true;
+            // Only clear error if we aren't already in a forced error state from a specific error code
             setHasConnectionError(false);
             addLog('Player Ready - API Connected');
             
@@ -82,13 +84,14 @@ const App: React.FC = () => {
     addLog('Listener attached. Waiting for YouTube API...');
 
     // Check for API connection timeout
+    // Increased to 8000ms to allow for slower networks or heavy loading
     const timeoutCheck = setTimeout(() => {
       if (!isApiConnected.current) {
         addLog('--- CONNECTION TIMEOUT ---');
         addLog('Switched to Basic Embed Mode (No API)');
         setHasConnectionError(true); 
       }
-    }, 4000);
+    }, 8000);
     
     return () => {
       window.removeEventListener('message', handleMessage);
@@ -146,25 +149,29 @@ const App: React.FC = () => {
           />
         </div>
 
-        {/* Warning Badge if API fails or video is restricted */}
-        {hasConnectionError && (
-          <div className="pointer-events-auto animate-pulse flex items-center gap-2 px-4 py-2 bg-yellow-900/50 border border-yellow-500/50 rounded-full backdrop-blur text-yellow-200 text-sm">
-            <AlertCircleIcon className="w-4 h-4" />
-            <span>Connection Timeout. Switched to Basic Mode. Click to play.</span>
-          </div>
-        )}
+        {/* Removed intrusive warning. Status is now in footer/debug only. */}
 
       </main>
 
       {/* Footer Info */}
       <footer className="absolute bottom-6 text-white/20 text-xs font-light tracking-widest uppercase flex flex-col items-center gap-2 pointer-events-auto">
         <span>Designed for Focus & Ambience</span>
-        <button 
-          onClick={() => setShowDebug(!showDebug)} 
-          className="hover:text-white/50 transition-colors underline decoration-dotted"
-        >
-          {showDebug ? 'Hide Debug' : 'Show Debug'}
-        </button>
+        
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setShowDebug(!showDebug)} 
+            className="hover:text-white/50 transition-colors underline decoration-dotted"
+          >
+            {showDebug ? 'Hide Debug' : 'Debug'}
+          </button>
+          
+          {hasConnectionError && (
+             <span className="flex items-center gap-1 text-yellow-500/50" title="Running in Basic Mode (API Disconnected)">
+               <span className="w-1.5 h-1.5 rounded-full bg-yellow-500/50"></span>
+               Basic Mode
+             </span>
+          )}
+        </div>
       </footer>
 
       {/* DEBUG PANEL */}
@@ -175,7 +182,7 @@ const App: React.FC = () => {
             <div className="flex justify-between items-center border-b border-green-500/30 pb-2">
                <span className="font-bold">DEBUG & LOGS</span>
                <div className="flex gap-1">
-                 <span className={`w-2 h-2 rounded-full ${isApiConnected.current ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}></span>
+                 <span className={`w-2 h-2 rounded-full ${isApiConnected.current ? 'bg-green-500' : hasConnectionError ? 'bg-yellow-500' : 'bg-red-500 animate-pulse'}`}></span>
                </div>
             </div>
             
@@ -183,6 +190,10 @@ const App: React.FC = () => {
                <div className="flex justify-between">
                 <span className="text-gray-500 uppercase text-[10px]">Video ID</span>
                 <span>{videoId}</span>
+               </div>
+               <div className="flex justify-between">
+                <span className="text-gray-500 uppercase text-[10px]">Mode</span>
+                <span>{hasConnectionError ? 'Basic (Fallback)' : 'API (Standard)'}</span>
                </div>
                <div>
                   <a 
@@ -219,12 +230,6 @@ const App: React.FC = () => {
               >
                 Copy Logs
               </button>
-            </div>
-            
-            <div className="text-[9px] text-gray-500 border-t border-white/5 pt-2 italic">
-               Note: If video is black and logs timeout:<br/>
-               1. Check if video is Age Restricted (requires login)<br/>
-               2. Check if video disables embedding
             </div>
           </div>
         </div>
