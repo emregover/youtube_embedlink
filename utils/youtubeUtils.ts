@@ -1,4 +1,13 @@
 /**
+ * Detects if the app is running in a sandboxed environment (e.g. AI Studio preview).
+ */
+export const isSandboxedEnvironment = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const origin = window.location.origin;
+  return origin.includes('usercontent.goog') || origin.includes('googleusercontent');
+};
+
+/**
  * Extracts the YouTube Video ID from various URL formats.
  * Supports:
  * - https://www.youtube.com/watch?v=ID
@@ -78,8 +87,7 @@ export const getEmbedUrl = (videoId: string, autoplay: boolean = true): string =
   const origin = rawOrigin.replace(/\/$/, '');
   
   // DETECT AI STUDIO PREVIEW
-  // If we are on a ".google" or "usercontent" domain, disable the API to prevent errors
-  const isSandboxed = origin.includes('usercontent.goog') || origin.includes('googleusercontent');
+  const isSandboxed = isSandboxedEnvironment();
   
   // If sandboxed, TURN OFF the API. The video will play, but custom controls won't work.
   const enableApi = isSandboxed ? '0' : '1'; 

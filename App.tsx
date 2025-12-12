@@ -124,7 +124,8 @@ const App: React.FC = () => {
       <VideoBackground 
         videoId={videoConfig.id} 
         autoplay={videoConfig.autoplay}
-        useFallback={hasConnectionError} 
+        useFallback={hasConnectionError}
+        onDebugLog={addLog}
       />
 
       {/* Main Content Area */}

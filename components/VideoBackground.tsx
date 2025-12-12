@@ -1,29 +1,74 @@
-import React, { useState, useEffect } from 'react';
-import { getEmbedUrl, getSimpleEmbedUrl } from '../utils/youtubeUtils';
+import React, { useState, useEffect, useRef } from 'react';
+import { getEmbedUrl, getSimpleEmbedUrl, isSandboxedEnvironment } from '../utils/youtubeUtils';
 
 interface VideoBackgroundProps {
   videoId: string;
   autoplay?: boolean;
   useFallback?: boolean;
+  onDebugLog?: (msg: string) => void;
 }
 
-export const VideoBackground: React.FC<VideoBackgroundProps> = ({ videoId, autoplay = true, useFallback = false }) => {
+export const VideoBackground: React.FC<VideoBackgroundProps> = ({ 
+  videoId, 
+  autoplay = true, 
+  useFallback = false,
+  onDebugLog 
+}) => {
   const [currentVideoId, setCurrentVideoId] = useState(videoId);
+  const [isSandboxed, setIsSandboxed] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const sandboxStatus = isSandboxedEnvironment();
+    setIsSandboxed(sandboxStatus);
+    onDebugLog?.(`[VideoBG] Init: Sandboxed=${sandboxStatus}`);
+  }, [onDebugLog]);
 
   useEffect(() => {
     if (videoId !== currentVideoId) {
       setCurrentVideoId(videoId);
+      onDebugLog?.(`[VideoBG] Video ID changed to ${videoId}`);
     }
-  }, [videoId, currentVideoId]);
+  }, [videoId, currentVideoId, onDebugLog]);
+
+  // Log mode changes
+  useEffect(() => {
+    const mode = (useFallback || isSandboxed) ? 'DIRECT (Iframe native controls)' : 'INTERCEPT (Overlay API control)';
+    onDebugLog?.(`[VideoBG] Interaction Mode: ${mode} | Autoplay: ${autoplay}`);
+  }, [useFallback, isSandboxed, autoplay, onDebugLog]);
+
+  // Global click listener for debugging purposes
+  // Captures clicks on the container before they hit the iframe or overlay
+  useEffect(() => {
+    if (!onDebugLog) return;
+
+    const handleCaptureClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const isOverlay = target.getAttribute('data-overlay') === 'true';
+      const isIframe = target.tagName === 'IFRAME';
+      
+      onDebugLog(`[Click] Pos: ${e.clientX},${e.clientY} | Target: <${target.tagName.toLowerCase()}>${isOverlay ? ' [Overlay]' : ''}${isIframe ? ' [Iframe]' : ''}`);
+    };
+
+    const container = containerRef.current;
+    if (container) {
+      container.addEventListener('click', handleCaptureClick, { capture: true });
+    }
+    return () => {
+      if (container) {
+        container.removeEventListener('click', handleCaptureClick, { capture: true });
+      }
+    };
+  }, [onDebugLog]);
 
   // Attempt to kickstart playback for Autoplay=ON only
-  // If autoplay is off, we wait for user interaction (click).
   useEffect(() => {
     if (useFallback || !autoplay) return;
 
     const timer = setTimeout(() => {
       const iframe = document.getElementById('youtube-background-player') as HTMLIFrameElement;
       if (iframe && iframe.contentWindow) {
+        // Silent attempt
         iframe.contentWindow.postMessage(JSON.stringify({
           event: 'command',
           func: 'playVideo',
@@ -36,11 +81,20 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({ videoId, autop
   }, [currentVideoId, useFallback, autoplay]);
 
   const handleBackdropClick = () => {
-    // We send both playVideo and unMute.
-    // This handles the case where autoplay was OFF (starts playing)
-    // AND the case where autoplay was ON (ensures sound is on if browser muted it).
+    onDebugLog?.('[VideoBG] Overlay Clicked -> Sending API Commands');
+    
     const iframe = document.getElementById('youtube-background-player') as HTMLIFrameElement;
-    if (iframe && iframe.contentWindow) {
+    if (!iframe) {
+      onDebugLog?.('[VideoBG] ERROR: Iframe element missing');
+      return;
+    }
+    
+    if (!iframe.contentWindow) {
+      onDebugLog?.('[VideoBG] ERROR: Iframe contentWindow missing');
+      return;
+    }
+
+    try {
       iframe.contentWindow.postMessage(JSON.stringify({
         event: 'command',
         func: 'playVideo',
@@ -52,24 +106,22 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({ videoId, autop
         func: 'unMute',
         args: []
       }), '*');
+      
+      onDebugLog?.('[VideoBG] Commands Sent: playVideo, unMute');
+    } catch (e) {
+      onDebugLog?.(`[VideoBG] Exception sending command: ${e}`);
     }
   };
 
   const embedUrl = useFallback ? getSimpleEmbedUrl(currentVideoId, autoplay) : getEmbedUrl(currentVideoId, autoplay);
   
-  // Interaction Logic:
-  // If we are in Fallback Mode (API disabled/unavailable):
-  //   - We MUST let the click pass through to the iframe (`allowDirectInteraction = true`).
-  //   - The user will interact with the native YouTube player controls (or thumbnail click).
-  // If we are in Standard Mode (API connected):
-  //   - We BLOCK the pass-through (`allowDirectInteraction = false`).
-  //   - We capture the click on the overlay div.
-  //   - We use the `handleBackdropClick` to strictly send API commands.
-  //   - This is more reliable than hoping the `controls=0` iframe handles the click correctly.
-  const allowDirectInteraction = useFallback;
+  // Interaction Strategy:
+  // 1. Fallback/Sandbox: API unavailable. Overlay allows click-through (pointer-events-none). User clicks Iframe.
+  // 2. Standard: API available. Overlay catches click. User clicks Overlay -> JS sends play command.
+  const allowDirectInteraction = useFallback || isSandboxed;
 
   return (
-    <div className="fixed inset-0 w-full h-full overflow-hidden -z-10 bg-black">
+    <div ref={containerRef} className="fixed inset-0 w-full h-full overflow-hidden -z-10 bg-black">
       <div className="
         absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 
         w-[150vw] h-[150vh] min-w-[177.77vh] min-h-[56.25vw]
@@ -87,12 +139,8 @@ export const VideoBackground: React.FC<VideoBackgroundProps> = ({ videoId, autop
         />
       </div>
       
-      {/* 
-         Overlay behaves as the "Play Button" for the whole screen.
-         - If !allowDirectInteraction: It captures clicks and calls API. Cursor is pointer.
-         - If allowDirectInteraction: It ignores clicks (pointer-events-none), letting them hit the iframe.
-      */}
       <div 
+        data-overlay="true"
         className={`absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-colors ${!allowDirectInteraction ? 'cursor-pointer hover:bg-black/30' : 'pointer-events-none'}`} 
         onClick={!allowDirectInteraction ? handleBackdropClick : undefined}
         title={!allowDirectInteraction ? "Click to Play / Unmute" : undefined}
